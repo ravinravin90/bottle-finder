@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Bottle Finder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the search field is the product. One sticky search bar; results are a scannable list where every
+   row carries all five stores in a fixed order (chips on phone). Summary before detail. Color only where
+   something needs attention (low / out / stale sync); the accent is reserved for interaction. */
+:root{
+  --bg:#F5F7F5; --surface:#FFFFFF; --surface-2:#ECF0ED; --surface-3:#E0E6E2;
+  --ink:#15201C; --ink-2:#4A5A53; --ink-3:#73827B; --line:#D7DED9;
+  --accent:#0F5C55; --accent-ink:#FFFFFF; --accent-soft:#D8E9E5;
+  --warn:#8A4F00; --warn-bg:#FBEBD2; --crit:#A3232B; --crit-bg:#FADCDD; --good:#1E6B3A;
+  --mark:#FFF1B8;
+  --shadow:0 1px 2px rgba(21,32,28,.06),0 10px 28px -18px rgba(21,32,28,.28);
+  --font-display:"Bricolage Grotesque","Avenir Next","Segoe UI",sans-serif;
+  --font-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111614; --surface:#191F1C; --surface-2:#212925; --surface-3:#2B3531;
+  --ink:#E7ECE9; --ink-2:#A7B3AD; --ink-3:#7A8781; --line:#2C3632;
+  --accent:#5CC0B0; --accent-ink:#0C1A17; --accent-soft:#1D3833;
+  --warn:#F2B964; --warn-bg:#3A2A10; --crit:#F29096; --crit-bg:#42201F; --good:#7ED49A;
+  --mark:#4A3F12;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.7);
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111614; --surface:#191F1C; --surface-2:#212925; --surface-3:#2B3531;
+  --ink:#E7ECE9; --ink-2:#A7B3AD; --ink-3:#7A8781; --line:#2C3632;
+  --accent:#5CC0B0; --accent-ink:#0C1A17; --accent-soft:#1D3833;
+  --warn:#F2B964; --warn-bg:#3A2A10; --crit:#F29096; --crit-bg:#42201F; --good:#7ED49A;
+  --mark:#4A3F12;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 28px -18px rgba(0,0,0,.7);
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:400 14px/1.45 var(--font-body);margin:0;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+h1,h2,h3{margin:0;text-wrap:balance}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:2px}
+mark{background:var(--mark);color:inherit;border-radius:3px;padding:0 1px}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+
+/* top bar */
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-block:22px 14px}
+.brand{display:flex;flex-direction:column;gap:2px}
+.wordmark{font:700 26px/1 var(--font-display);letter-spacing:-.02em;font-variation-settings:"opsz" 96}
+.wordmark .dot{color:var(--accent)}
+.tagline{color:var(--ink-2);font-size:13px}
+.syncline{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);font-family:var(--font-mono)}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;padding:4px;background:var(--surface-2);border-radius:12px;width:max-content;max-width:100%;margin-bottom:14px}
+.tab{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:9px;text-decoration:none;color:var(--ink-2);font-weight:500;white-space:nowrap}
+.tab:hover{color:var(--ink)}
+.tab.is-active{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.badge{min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:var(--warn-bg);color:var(--warn);font:500 12px/22px var(--font-mono);text-align:center}
+.badge.has-out{background:var(--crit-bg);color:var(--crit)}
+
+/* search */
+.search{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:6px 10px}
+.search-inner{display:flex;align-items:center;gap:12px;background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:12px 16px;box-shadow:var(--shadow);transition:border-color .15s,box-shadow .15s}
+.search-inner:focus-within{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.search-inner svg{flex:none;width:22px;height:22px;color:var(--ink-3)}
+#q{flex:1;min-width:0;border:0;background:none;font:500 19px/1.3 var(--font-body);color:var(--ink);outline:none;padding:0}
+#q::placeholder{color:var(--ink-3);font-weight:400}
+#q::-webkit-search-cancel-button{display:none}
+.clearbtn{border:0;background:var(--surface-2);color:var(--ink-2);border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:500;cursor:pointer}
+.clearbtn:hover{background:var(--surface-3)}
+.kbd{flex:none;font:500 11.5px var(--font-mono);color:var(--ink-3);border:1px solid var(--line);border-radius:6px;padding:2px 7px;background:var(--surface-2)}
+.hints{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--ink-3)}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:4px 11px;font:500 12.5px var(--font-mono);cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+
+.summary{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:14px 0 10px;color:var(--ink-2);font-size:13px}
+.summary strong{color:var(--ink);font-weight:600}
+.summary .tip{color:var(--ink-3);font-size:12.5px}
+
+/* results */
+.colhead,.row-main{display:grid;grid-template-columns:minmax(0,1.55fr) 86px repeat(5,minmax(82px,1fr));gap:10px;align-items:center}
+.colhead{padding:0 14px 8px;font:500 11px/1.2 var(--font-body);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
+.colhead .st{display:flex;align-items:center;gap:6px;min-width:0}
+.colhead .st b{font-family:var(--font-mono);font-weight:500;color:var(--ink-2)}
+.colhead .st span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:11.5px}
+.stale{width:7px;height:7px;border-radius:50%;background:var(--warn);flex:none}
+.results{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.row{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.row-main{width:100%;padding:10px 14px;background:none;border:0;text-align:left;cursor:pointer;border-radius:12px}
+.row-main:hover{background:var(--surface-2)}
+.row.is-open .row-main{border-radius:12px 12px 0 0;background:var(--surface-2)}
+.r-name{min-width:0}
+.r-name .name{font-weight:600;font-size:15px;line-height:1.3}
+.r-name .size{display:inline-block;margin-left:6px;font:500 12px var(--font-mono);color:var(--accent);background:var(--accent-soft);padding:1px 7px;border-radius:6px;vertical-align:1px}
+.r-name .meta{font-size:12px;color:var(--ink-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r-name .meta .upc{font-family:var(--font-mono)}
+.r-total{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1}
+.r-total .n{font:500 22px var(--font-mono);font-variant-numeric:tabular-nums}
+.r-total .l{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+.r-total.none .n{color:var(--crit)}
+.r-stores{display:contents}
+.cell{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 9px;border-radius:9px;background:var(--surface-2);min-width:0;border:1px solid transparent}
+.row-main:hover .cell,.row.is-open .cell{background:var(--surface)}
+.cell .code{font:500 10.5px var(--font-mono);letter-spacing:.08em;color:var(--ink-3)}
+.cell .qty{display:flex;align-items:baseline;gap:5px;font:500 17px/1.2 var(--font-mono);font-variant-numeric:tabular-nums;color:var(--ink)}
+.cell .qty .tag{font:500 10px var(--font-body);text-transform:uppercase;letter-spacing:.06em}
+.cell .price{font:12px var(--font-mono);color:var(--ink-2)}
+.cell.low{background:var(--warn-bg)!important;border-color:color-mix(in srgb,var(--warn) 25%,transparent)}
+.cell.low .qty{color:var(--warn)}
+.cell.out{background:var(--crit-bg)!important;border-color:color-mix(in srgb,var(--crit) 25%,transparent)}
+.cell.out .qty{color:var(--crit);font-size:14px;font-weight:600;font-family:var(--font-body);text-transform:uppercase;letter-spacing:.05em}
+.cell.out .price{text-decoration:line-through;color:var(--ink-3)}
+.cell .diff{font-size:10px;color:var(--warn);font-weight:600}
+
+.row-detail{border-top:1px solid var(--line);padding:12px 14px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start}
+.dtable{width:100%;border-collapse:collapse;font-size:13px}
+.dtable th{text-align:left;font-weight:500;color:var(--ink-3);font-size:11px;text-transform:uppercase;letter-spacing:.07em;padding:4px 10px 6px 0;border-bottom:1px solid var(--line)}
+.dtable td{padding:7px 10px 7px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+.dtable tr:last-child td{border-bottom:0}
+.dtable td.n{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.dtable .stname b{font-family:var(--font-mono);font-weight:500;color:var(--ink-3);margin-right:6px}
+.dtable .warn{color:var(--warn);font-weight:600}
+.dtable .crit{color:var(--crit);font-weight:600}
+.dtable .muted{color:var(--ink-3)}
+.dwrap{overflow-x:auto;min-width:0}
+.dside{display:flex;flex-direction:column;gap:8px;min-width:180px}
+.dside .k{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
+.dside .v{font-family:var(--font-mono);font-size:13px}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 10px;font-size:12.5px;font-weight:500;cursor:pointer}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{color:var(--accent-ink);filter:brightness(1.08)}
+.empty{padding:36px 16px;text-align:center;color:var(--ink-2);background:var(--surface);border:1px dashed var(--line);border-radius:12px}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:6px;font-family:var(--font-display);font-weight:600}
+
+/* low stock */
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 14px}
+.filters .chip.is-on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.lowlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.lowitem{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+.lowitem .stripe{width:4px;height:36px;border-radius:2px;background:var(--warn)}
+.lowitem.out .stripe{background:var(--crit)}
+.lowitem .what{min-width:0}
+.lowitem .what .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lowitem .what .meta{font-size:12px;color:var(--ink-3)}
+.lowitem .where{font:500 12px var(--font-mono);color:var(--ink-2);background:var(--surface-2);padding:4px 8px;border-radius:7px;white-space:nowrap}
+.lowitem .stat{text-align:right;line-height:1.15;white-space:nowrap}
+.lowitem .stat .n{font:500 17px var(--font-mono);font-variant-numeric:tabular-nums}
+.lowitem.out .stat .n{color:var(--crit)}
+.lowitem:not(.out) .stat .n{color:var(--warn)}
+.lowitem .stat .l{font-size:11px;color:var(--ink-3)}
+
+/* stores */
+.storegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.store-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.store-card header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.store-card h3{font:600 18px/1.2 var(--font-display);letter-spacing:-.01em}
+.store-card h3 b{font:500 12px var(--font-mono);color:var(--ink-3);margin-right:8px;vertical-align:2px;letter-spacing:.08em}
+.store-card .addr{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.sync{display:inline-flex;align-items:center;gap:6px;font:500 11.5px var(--font-mono);color:var(--ink-2);background:var(--surface-2);padding:4px 9px;border-radius:999px;white-space:nowrap}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--good)}
+.sync.is-stale{color:var(--warn);background:var(--warn-bg)}
+.sync.is-stale i{background:var(--warn)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0}
+.stats div{background:var(--surface-2);border-radius:9px;padding:8px 10px;min-width:0}
+.stats dt{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
+.stats dd{margin:2px 0 0;font:500 18px var(--font-mono);font-variant-numeric:tabular-nums}
+.stats dd.warn{color:var(--warn)} .stats dd.crit{color:var(--crit)}
+.spark{display:flex;flex-direction:column;gap:6px}
+.spark-head{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-3)}
+.spark-head strong{font:500 15px var(--font-mono);color:var(--ink);font-variant-numeric:tabular-nums}
+.spark-head strong small{font:400 11.5px var(--font-body);color:var(--ink-3);margin-left:4px}
+.spark svg{width:100%;height:56px;display:block;overflow:visible}
+.spark .grid{stroke:var(--line);stroke-width:1}
+.spark .area{fill:var(--accent);opacity:.12}
+.spark .line{fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.spark .pt{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.spark .hit{fill:transparent;cursor:crosshair}
+.spark .hover{fill:var(--ink);stroke:var(--surface);stroke-width:2;opacity:0;pointer-events:none}
+.spark .hover.on{opacity:1}
+
+/* footer */
+.how{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink-2);font-size:13px;max-width:72ch}
+.how h2{font:600 15px var(--font-display);color:var(--ink);margin-bottom:8px}
+.how p{margin:0 0 8px}
+.how code{font-family:var(--font-mono);font-size:12px;background:var(--surface-2);padding:1px 5px;border-radius:4px}
+
+@media (max-width:760px){
+  .colhead{display:none}
+  .row-main{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"name total" "stores stores";row-gap:8px}
+  .r-name{grid-area:name}.r-total{grid-area:total;align-items:flex-end}
+  .r-stores{display:grid;grid-area:stores;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+  .cell{padding:6px 6px}.cell .qty{font-size:15px}.cell .price{font-size:11px}
+  .cell.out .qty{font-size:12px}
+  .row-detail{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .lowitem{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"stripe what stat" "stripe where stat"}
+  .lowitem .stripe{grid-area:stripe}.lowitem .what{grid-area:what}.lowitem .where{grid-area:where;justify-self:start}.lowitem .stat{grid-area:stat}
+  #q{font-size:17px}.kbd{display:none}
+  .wordmark{font-size:23px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1 class="wordmark">Bottle Finder<span class="dot">.</span></h1>
+      <div class="tagline">Every bottle, every store, one search. Five stores, sample data.</div>
+    </div>
+    <div class="syncline" id="syncline"><span class="pulse"></span><span>Synced 2 min ago · Square</span></div>
+  </header>
+
+  <nav class="tabs" aria-label="Views">
+    <a class="tab is-active" href="#find" data-view="find">Find a bottle</a>
+    <a class="tab" href="#low-stock" data-view="low">Low stock <span class="badge" id="lowBadge">0</span></a>
+    <a class="tab" href="#stores" data-view="stores">Stores</a>
+  </nav>
+
+  <section id="view-find" aria-label="Find a bottle">
+    <div class="search">
+      <div class="search-inner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Bottle, brand, size, or scan a barcode" autocomplete="off" spellcheck="false" aria-label="Search bottles" value="jack danials 750">
+        <button class="clearbtn" id="clearBtn" type="button">Clear</button>
+        <span class="kbd" title="Press / to search">/</span>
+      </div>
+      <div class="hints" id="hints">Try
+        <button class="chip" type="button" data-q="jd">jd</button>
+        <button class="chip" type="button" data-q="titos handle">titos handle</button>
+        <button class="chip" type="button" data-q="crown apple">crown apple</button>
+        <button class="chip" type="button" data-q="jhonnie walker black">jhonnie walker black</button>
+        <button class="chip" type="button" data-q="bourbon 1.75">bourbon 1.75</button>
+        <button class="chip" type="button" data-q="12 pack">12 pack</button>
+        <button class="chip" type="button" id="upcChip" data-q="">barcode</button>
+      </div>
+    </div>
+
+    <div class="summary"><div id="summary"></div><div class="tip">Click a row for prices, reorder points and last sale per store</div></div>
+    <div class="colhead" id="colhead"></div>
+    <ol class="results" id="results"></ol>
+  </section>
+
+  <section id="view-low" aria-label="Low stock" hidden>
+    <div class="summary"><div id="lowSummary"></div><div class="tip">At or below each store's reorder point. Sorted by what runs out first.</div></div>
+    <div class="filters" id="lowFilters"></div>
+    <ol class="lowlist" id="lowlist"></ol>
+  </section>
+
+  <section id="view-stores" aria-label="Stores" hidden>
+    <div class="summary"><div id="storeSummary"></div><div class="tip">Retail value is on-hand units at each store's shelf price.</div></div>
+    <div class="storegrid" id="storegrid"></div>
+  </section>
+
+  <footer class="how">
+    <h2>How this would work for real</h2>
+    <p>A small service reads each store's POS every few minutes through its API (for Square, the Catalog and Inventory endpoints per location; Clover works the same way with one merchant per store). It matches products across stores by UPC, so the same bottle shows as one row even when the five stores spell its name differently.</p>
+    <p>Search runs on our side, not the POS, which is why "jd", "titos handle" and typos all work. Nothing is written back to the POS. Everything on this page is example data: real brands, invented stock, prices and barcodes.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- deterministic sample data ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+var rnd=mulberry32(20261027);
+function R(lo,hi){return lo+Math.floor(rnd()*(hi-lo+1))}
+
+var STORES=[
+ {id:'MS',name:'Main Street',addr:'412 Main St',syncMin:2},
+ {id:'RV',name:'Riverside',addr:'88 River Rd',syncMin:3},
+ {id:'AP',name:'Airport Road',addr:'2200 Airport Rd',syncMin:5},
+ {id:'EG',name:'Eastgate',addr:'15 Eastgate Plaza',syncMin:4},
+ {id:'NH',name:'North Hills',addr:'960 N Hills Pkwy',syncMin:38}
+];
+var STALE_AFTER=15;
+
+var SIZES={50:{label:'50 ml',mult:.12},200:{label:'200 ml',mult:.38},375:{label:'375 ml',mult:.58},750:{label:'750 ml',mult:1},1000:{label:'1 L',mult:1.32},1500:{label:'1.5 L',mult:1.8},1750:{label:'1.75 L',mult:1.85}};
+var SIZE_ORDER=[750,1750,1000,375,200,50,1500];
+
+/* brand, name, category, style, 750 ml price, sizes */
+var SPIRITS=[
+ ["Jack Daniel's","Old No. 7","Whiskey","Tennessee whiskey",24.99,[50,375,750,1000,1750]],
+ ["Jack Daniel's","Tennessee Honey","Whiskey","Honey whiskey liqueur",24.99,[50,750,1750]],
+ ["Jack Daniel's","Tennessee Fire","Whiskey","Cinnamon whiskey liqueur",24.99,[750]],
+ ["Gentleman Jack","Rare Tennessee Whiskey","Whiskey","Tennessee whiskey",32.99,[750]],
+ ["Jim Beam","Kentucky Straight Bourbon","Whiskey","Bourbon",17.99,[750,1750]],
+ ["Maker's Mark","Kentucky Straight Bourbon","Whiskey","Wheated bourbon",29.99,[375,750,1750]],
+ ["Woodford Reserve","Distiller's Select","Whiskey","Bourbon",36.99,[750,1000]],
+ ["Bulleit","Frontier Whiskey Bourbon","Whiskey","Bourbon",29.99,[750,1750]],
+ ["Buffalo Trace","Kentucky Straight Bourbon","Whiskey","Bourbon",29.99,[750]],
+ ["Eagle Rare","10 Year Bourbon","Whiskey","Bourbon",44.99,[750]],
+ ["Blanton's","Single Barrel Bourbon","Whiskey","Bourbon",79.99,[750]],
+ ["Wild Turkey","101 Bourbon","Whiskey","Bourbon",24.99,[750,1750]],
+ ["Evan Williams","Black Label Bourbon","Whiskey","Bourbon",14.99,[750,1750]],
+ ["Crown Royal","Deluxe","Whiskey","Canadian whisky",29.99,[375,750,1750]],
+ ["Crown Royal","Regal Apple","Whiskey","Flavored Canadian whisky",29.99,[750,1750]],
+ ["Crown Royal","Peach","Whiskey","Flavored Canadian whisky",29.99,[750]],
+ ["Jameson","Irish Whiskey","Whiskey","Irish whiskey",29.99,[375,750,1750]],
+ ["Johnnie Walker","Black Label 12 Year","Whiskey","Blended Scotch",39.99,[750,1750]],
+ ["Johnnie Walker","Red Label","Whiskey","Blended Scotch",24.99,[750,1750]],
+ ["Fireball","Cinnamon Whisky","Whiskey","Cinnamon whisky liqueur",16.99,[50,750,1750]],
+ ["The Glenlivet","12 Year","Whiskey","Single malt Scotch",49.99,[750]],
+ ["The Macallan","12 Year Double Cask","Whiskey","Single malt Scotch",74.99,[750]],
+ ["Tito's","Handmade Vodka","Vodka","Corn vodka",21.99,[50,375,750,1000,1750]],
+ ["Grey Goose","Vodka","Vodka","French wheat vodka",34.99,[750,1750]],
+ ["Smirnoff","No. 21 Vodka","Vodka","Vodka",12.99,[375,750,1750]],
+ ["Absolut","Vodka","Vodka","Swedish vodka",21.99,[750,1750]],
+ ["Ketel One","Vodka","Vodka","Dutch wheat vodka",27.99,[750,1750]],
+ ["New Amsterdam","Vodka","Vodka","Vodka",12.99,[750,1750]],
+ ["Svedka","Vodka","Vodka","Swedish vodka",11.99,[750,1750]],
+ ["Cîroc","Vodka","Vodka","Grape vodka",34.99,[750]],
+ ["Patrón","Silver","Tequila","Blanco tequila",44.99,[375,750,1750]],
+ ["Don Julio","Blanco","Tequila","Blanco tequila",49.99,[750]],
+ ["Don Julio","1942 Añejo","Tequila","Añejo tequila",169.99,[750]],
+ ["Casamigos","Blanco","Tequila","Blanco tequila",49.99,[750,1750]],
+ ["Jose Cuervo","Especial Gold","Tequila","Gold tequila",19.99,[750,1750]],
+ ["Espolòn","Blanco","Tequila","Blanco tequila",26.99,[750]],
+ ["1800","Silver","Tequila","Blanco tequila",29.99,[750,1750]],
+ ["Hornitos","Plata","Tequila","Blanco tequila",24.99,[750]],
+ ["Bacardí","Superior White Rum","Rum","White rum",14.99,[750,1750]],
+ ["Captain Morgan","Original Spiced Rum","Rum","Spiced rum",17.99,[750,1750]],
+ ["Malibu","Coconut Rum","Rum","Coconut rum liqueur",16.99,[750,1750]],
+ ["Kraken","Black Spiced Rum","Rum","Spiced rum",24.99,[750]],
+ ["Tanqueray","London Dry Gin","Gin","London dry gin",24.99,[750,1750]],
+ ["Bombay Sapphire","Gin","Gin","London dry gin",26.99,[750,1750]],
+ ["Hendrick's","Gin","Gin","Scottish gin",36.99,[750]],
+ ["Hennessy","VS","Cognac","VS cognac",39.99,[375,750,1750]],
+ ["Rémy Martin","VSOP","Cognac","VSOP cognac",54.99,[750]],
+ ["Jägermeister","Herbal Liqueur","Liqueur","Herbal liqueur",24.99,[750,1750]],
+ ["Baileys","Original Irish Cream","Liqueur","Cream liqueur",29.99,[750]],
+ ["Kahlúa","Coffee Liqueur","Liqueur","Coffee liqueur",21.99,[750]],
+ ["Josh Cellars","Cabernet Sauvignon","Wine","California red",14.99,[750]],
+ ["Kendall-Jackson","Vintner's Reserve Chardonnay","Wine","California white",14.99,[750]],
+ ["Barefoot","Pinot Grigio","Wine","California white",7.99,[750,1500]],
+ ["Apothic","Red Blend","Wine","California red",10.99,[750]],
+ ["La Marca","Prosecco","Wine","Italian sparkling",15.99,[750]],
+ ["Veuve Clicquot","Yellow Label Brut","Wine","Champagne",64.99,[750]],
+ ["Meiomi","Pinot Noir","Wine","California red",21.99,[750]],
+ ["Yellow Tail","Shiraz","Wine","Australian red",6.99,[750,1500]]
+];
+/* brand, name, category, style, [[pack, price]] */
+var PACKS=[
+ ["Bud Light","Lager","Beer","Light lager",[[6,8.99],[12,14.99],[24,22.99]]],
+ ["Modelo Especial","Lager","Beer","Mexican lager",[[6,10.99],[12,17.99]]],
+ ["Michelob Ultra","Light Lager","Beer","Light lager",[[6,9.49],[12,15.99]]],
+ ["Corona Extra","Lager","Beer","Mexican lager",[[6,10.99],[12,17.99]]],
+ ["Heineken","Lager","Beer","Dutch lager",[[6,10.99],[12,17.99]]],
+ ["Stella Artois","Lager","Beer","Belgian lager",[[6,10.99]]],
+ ["Guinness","Draught Stout","Beer","Irish stout",[[8,14.99]]],
+ ["White Claw","Hard Seltzer Variety","Seltzer","Hard seltzer",[[12,18.99]]],
+ ["High Noon","Vodka Seltzer Variety","Seltzer","Vodka seltzer",[[8,19.99]]],
+ ["Twisted Tea","Original Hard Iced Tea","Seltzer","Hard iced tea",[[12,17.99]]]
+];
+
+function norm(s){
+  return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/['’`]/g,'').replace(/\.(?!\d)/g,' ').replace(/[^a-z0-9.]+/g,' ').replace(/\s+/g,' ').trim();
+}
+var STOP={the:1,a:1,of:1,and:1,bottle:1,bottles:1,bottel:1,'for':1,'in':1,at:1,store:1,stores:1,stock:1};
+function tokens(s){var seen={},out=[];norm(s).split(' ').forEach(function(t){if(t&&!STOP[t]&&!seen[t]){seen[t]=1;out.push(t)}});return out}
+
+var brandCodes={};
+function brandCode(b){if(!brandCodes[b])brandCodes[b]=String(R(10000,99999));return brandCodes[b]}
+function upcFor(b){
+  var body='0'+brandCode(b)+String(R(10000,99999)),sum=0;
+  for(var i=0;i<11;i++){var d=+body[i];sum+=(i%2===0)?d*3:d}
+  return body+((10-sum%10)%10);
+}
+function price99(v){return Math.max(1.99,Math.floor(v)+0.99)}
+function genQty(premium,beer){
+  var r=rnd(),q;
+  if(r<.07)q=0;else if(r<.18)q=R(1,3);else if(r<.85)q=R(4,28);else q=R(28,80);
+  if(premium&&q>12)q=R(2,12);
+  if(beer)q=Math.round(q*1.4);
+  return q;
+}
+
+var SKUS=[],pIndex=0;
+function addSku(brand,name,cat,sub,sizeKey,label,ml,pack,base,rop,beer){
+  var premium=base>=60;
+  var sku={id:SKUS.length,pIndex:pIndex,brand:brand,name:name,cat:cat,sub:sub,label:label,ml:ml,pack:pack,upc:upcFor(brand),
+    tokens:tokens(brand+' '+name+' '+cat+' '+sub),brandTokens:tokens(brand),stores:{}};
+  STORES.forEach(function(s){
+    var p=base;
+    if(s.id==='AP'&&rnd()<.45)p=base+R(1,3);
+    else if(rnd()<.18)p=base+(rnd()<.5?-1:1)*R(1,2);
+    var qty=genQty(premium,beer);
+    var sold7=beer?R(4,48):(premium?R(0,5):R(0,22));
+    var lastSold=qty===0?R(1,14):(sold7>8?R(0,1):R(0,10));
+    sku.stores[s.id]={qty:qty,price:price99(p),rop:rop,sold7:sold7,lastSold:lastSold};
+  });
+  SKUS.push(sku);
+}
+SPIRITS.forEach(function(p){
+  var brand=p[0],name=p[1],cat=p[2],sub=p[3],base=p[4];
+  p[5].forEach(function(ml){
+    var sz=SIZES[ml],rop=ml===50?12:(ml>=1500?4:(base>=60?3:6));
+    addSku(brand,name,cat,sub,ml,sz.label,ml,null,base*sz.mult,rop,false);
+  });
+  pIndex++;
+});
+PACKS.forEach(function(p){
+  var brand=p[0],name=p[1],cat=p[2],sub=p[3];
+  p[4].forEach(function(pp){
+    addSku(brand,name,cat,sub,'p'+pp[0],pp[0]+'-pack',null,pp[0],pp[1],pp[0]>=12?8:10,true);
+  });
+  pIndex++;
+});
+STORES.forEach(function(s){
+  var base=R(2600,5200);s.sales7=[];
+  for(var i=0;i<7;i++)s.sales7.push(Math.round(base*(0.72+rnd()*0.6+(i>=4?0.25:0))));
+});
+
+/* ---------- search ---------- */
+var ALIASES=[
+ ['jw black','johnnie walker black label'],['jw red','johnnie walker red label'],['jw','johnnie walker'],['johnny walker','johnnie walker'],
+ ['jd honey','jack daniels honey'],['jd fire','jack daniels fire'],['jd','jack daniels'],['jack honey','jack daniels honey'],['jack fire','jack daniels fire'],
+ ['jb','jim beam'],['beam','jim beam'],['makers','makers mark'],['wt 101','wild turkey 101'],['turkey','wild turkey'],['evan','evan williams'],
+ ['woodford','woodford reserve'],['buffalo','buffalo trace'],['eagle','eagle rare'],['mac 12','macallan 12'],
+ ['cr apple','crown royal apple'],['crown apple','crown royal apple'],['crown peach','crown royal peach'],['crown','crown royal'],
+ ['jager','jagermeister'],['yager','jagermeister'],['jaeger','jagermeister'],['henny','hennessy'],['hen','hennessy'],['remy','remy martin'],
+ ['dj 1942','don julio 1942'],['dj','don julio'],['1942','don julio 1942'],['casa','casamigos'],['cuervo','jose cuervo'],
+ ['capt','captain morgan'],['captain','captain morgan'],['cap morgan','captain morgan'],['kettle one','ketel one'],['kettle','ketel one'],['ketel','ketel one'],
+ ['goose','grey goose'],['gray goose','grey goose'],['tanq','tanqueray'],['bombay','bombay sapphire'],['sapphire','bombay sapphire'],
+ ['mich ultra','michelob ultra'],['ultra','michelob ultra'],['michelob','michelob ultra'],['kj','kendall jackson'],['veuve','veuve clicquot'],
+ ['claw','white claw'],['noon','high noon'],['twisted','twisted tea'],['new am','new amsterdam'],['newamsterdam','new amsterdam'],
+ ['jack','jack daniels']
+];
+var aliasMap={};ALIASES.forEach(function(a){aliasMap[a[0]]=a[1]});
+var aliasRe=new RegExp('(^|\\s)('+ALIASES.map(function(a){return a[0]}).sort(function(x,y){return y.length-x.length}).map(function(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}).join('|')+')(?=\\s|$)','g');
+var SIZE_WORDS={handle:1750,handles:1750,'half gallon':1750,fifth:750,fifths:750,pint:375,pints:375,liter:1000,litre:1000,ltr:1000,mini:50,minis:50,nip:50,nips:50,shooter:50,shooters:50,airplane:50,magnum:1500};
+var sizeWordRe=new RegExp('(^|\\s)('+Object.keys(SIZE_WORDS).sort(function(x,y){return y.length-x.length}).join('|')+')(?=\\s|$)','g');
+
+function parseQuery(raw){
+  var digits=raw.replace(/\D/g,'');
+  if(/^[\d\s-]+$/.test(raw.trim())&&digits.length>=5)return{upc:digits,tokens:[],size:null,pack:null};
+  var s=' '+norm(raw)+' ',size=null,pack=null;
+  s=s.replace(aliasRe,function(m,sp,k){return sp+aliasMap[k]});
+  s=s.replace(sizeWordRe,function(m,sp,k){size=SIZE_WORDS[k];return sp});
+  s=s.replace(/(^|\s)(\d+)\s*(?:pk|pack|packs|pks|case)(?=\s|$)/g,function(m,sp,n){pack=+n;return sp});
+  s=s.replace(/(^|\s)(\d+(?:\.\d+)?)\s*(ml|l|liter|litre|ltr)(?=\s|$)/g,function(m,sp,n,u){var v=parseFloat(n);size=u==='ml'?v:Math.round(v*1000);return sp});
+  s=s.replace(/(^|\s)(1\.75|175|750|375|1000|200|50)(?=\s|$)/g,function(m,sp,n){size=(n==='1.75'||n==='175')?1750:+n;return sp});
+  var t=tokens(s);
+  return{upc:null,tokens:t,size:size,pack:pack};
+}
+function lev(a,b,max){
+  if(Math.abs(a.length-b.length)>max)return max+1;
+  var prev=[],cur=[],i,j;for(j=0;j<=b.length;j++)prev[j]=j;
+  for(i=1;i<=a.length;i++){cur[0]=i;var rowMin=i;
+    for(j=1;j<=b.length;j++){var c=a[i-1]===b[j-1]?0:1;cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+c);if(cur[j]<rowMin)rowMin=cur[j]}
+    if(rowMin>max)return max+1;var t=prev;prev=cur;cur=t}
+  return prev[b.length];
+}
+function tokScore(q,t){
+  if(t===q)return 1;
+  if(/^\d/.test(q))return 0;
+  if(t.indexOf(q)===0)return .92;
+  if(q.length>=4&&t.indexOf(q)>0)return .7;
+  if(q.length>=4){var d=lev(q,t,2);if(d<=1)return .78;if(d===2&&q.length>=6)return .58}
+  if(q.length>=5&&t.length>q.length){if(lev(q,t.slice(0,q.length),1)<=1)return .7}
+  return 0;
+}
+function scoreSku(sku,q){
+  var total=0,hits=[],i,j;
+  for(i=0;i<q.tokens.length;i++){var qt=q.tokens[i],best=0,bt=null;
+    for(j=0;j<sku.tokens.length;j++){var sc=tokScore(qt,sku.tokens[j]);if(sc>best){best=sc;bt=sku.tokens[j]}}
+    if(best===0)return null;total+=best;if(best>=.9)hits.push(bt)}
+  var score=q.tokens.length?total/q.tokens.length:0;
+  if(q.tokens.length){var bh=0;sku.brandTokens.forEach(function(b){if(q.tokens.some(function(qt){return tokScore(qt,b)>0}))bh++});score+=.15*bh/sku.brandTokens.length}
+  if(q.size!=null)score+=(sku.ml===q.size)?.3:-.5;
+  if(q.pack!=null)score+=(sku.pack===q.pack)?.3:-.5;
+  return{sku:sku,score:score,hits:hits};
+}
+function sizeRank(sku){return sku.ml!=null?SIZE_ORDER.indexOf(sku.ml):(10+sku.pack)}
+function search(raw){
+  var q=parseQuery(raw),res=[];
+  if(q.upc){SKUS.forEach(function(s){var p=s.upc.indexOf(q.upc);if(p>=0)res.push({sku:s,score:p===0?2:1,hits:[]})});
+    res.sort(function(a,b){return b.score-a.score||a.pIndex-b.pIndex});return{q:q,res:res,mode:'upc'}}
+  if(!q.tokens.length&&q.size==null&&q.pack==null){SKUS.forEach(function(s){res.push({sku:s,score:0,hits:[]})});
+    res.sort(function(a,b){return a.sku.pIndex-b.sku.pIndex||sizeRank(a.sku)-sizeRank(b.sku)});return{q:q,res:res,mode:'all'}}
+  SKUS.forEach(function(s){var r=scoreSku(s,q);if(r)res.push(r)});
+  if(q.size!=null&&res.some(function(r){return r.sku.ml===q.size}))res=res.filter(function(r){return r.sku.ml===q.size});
+  if(q.pack!=null&&res.some(function(r){return r.sku.pack===q.pack}))res=res.filter(function(r){return r.sku.pack===q.pack});
+  res.sort(function(a,b){return b.score-a.score||a.sku.pIndex-b.sku.pIndex||sizeRank(a.sku)-sizeRank(b.sku)});
+  return{q:q,res:res,mode:'text'};
+}
+
+/* ---------- helpers ---------- */
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function money(v){return '$'+v.toFixed(2)}
+function moneyK(v){return v>=10000?'$'+(v/1000).toFixed(1)+'k':'$'+Math.round(v).toLocaleString()}
+function ago(d){return d===0?'today':d===1?'yesterday':d+' days ago'}
+function hl(text,hits){
+  if(!hits.length)return esc(text);
+  return text.split(/(\s+)/).map(function(w){var n=norm(w);return(n&&hits.indexOf(n)>=0)?'<mark>'+esc(w)+'</mark>':esc(w)}).join('');
+}
+function total(sku){return STORES.reduce(function(a,s){return a+sku.stores[s.id].qty},0)}
+function isStale(s){return s.syncMin>=STALE_AFTER}
+function priceSpread(sku){var ps=STORES.map(function(s){return sku.stores[s.id].price});return Math.max.apply(null,ps)-Math.min.apply(null,ps)}
+
+/* ---------- find view ---------- */
+var qEl=document.getElementById('q'),resultsEl=document.getElementById('results'),summaryEl=document.getElementById('summary'),clearBtn=document.getElementById('clearBtn');
+var openId=null;
+document.getElementById('colhead').innerHTML='<div>Bottle</div><div>All stores</div>'+STORES.map(function(s){
+  return '<div class="st" title="'+esc(s.name)+(isStale(s)?' · last sync '+s.syncMin+' min ago':'')+'"><b>'+s.id+'</b><span>'+esc(s.name)+'</span>'+(isStale(s)?'<i class="stale" title="Sync is '+s.syncMin+' min old"></i>':'')+'</div>'}).join('');
+
+function cellHtml(sku,s){
+  var st=sku.stores[s.id],cls='cell',q;
+  if(st.qty===0){cls+=' out';q='Out'}
+  else if(st.qty<=st.rop){cls+=' low';q=st.qty+'<span class="tag">low</span>'}
+  else q=String(st.qty);
+  return '<div class="'+cls+'" title="'+esc(s.name)+': '+st.qty+' on hand at '+money(st.price)+'"><span class="code">'+s.id+'</span><span class="qty">'+q+'</span><span class="price">'+money(st.price)+'</span></div>';
+}
+function rowHtml(r){
+  var sku=r.sku,t=total(sku),spread=priceSpread(sku);
+  return '<li class="row'+(openId===sku.id?' is-open':'')+'" data-id="'+sku.id+'">'+
+    '<button class="row-main" type="button" aria-expanded="'+(openId===sku.id)+'">'+
+      '<div class="r-name"><div><span class="name">'+hl(sku.brand+' '+sku.name,r.hits)+'</span><span class="size">'+esc(sku.label)+'</span></div>'+
+      '<div class="meta">'+esc(sku.sub)+' · <span class="upc">'+sku.upc+'</span>'+(spread>0?' · <span style="color:var(--warn)">prices differ by '+money(spread)+'</span>':'')+'</div></div>'+
+      '<div class="r-total'+(t===0?' none':'')+'"><span class="n">'+t+'</span><span class="l">on hand</span></div>'+
+      '<div class="r-stores">'+STORES.map(function(s){return cellHtml(sku,s)}).join('')+'</div>'+
+    '</button>'+(openId===sku.id?detailHtml(sku):'')+'</li>';
+}
+function detailHtml(sku){
+  var rows=STORES.map(function(s){var st=sku.stores[s.id];
+    var qc=st.qty===0?'crit':(st.qty<=st.rop?'warn':'');
+    var cover=st.sold7>0?Math.round(st.qty/(st.sold7/7)):null;
+    var coverTxt=st.qty===0?'<span class="crit">out</span>':(cover==null?'<span class="muted">no sales</span>':(cover<=7?'<span class="'+(cover<=3?'crit':'warn')+'">~'+cover+' days</span>':'~'+cover+' days'));
+    return '<tr><td class="stname"><b>'+s.id+'</b>'+esc(s.name)+'</td><td class="n '+qc+'">'+st.qty+'</td><td class="n muted">'+st.rop+'</td><td class="n">'+money(st.price)+'</td><td class="n">'+st.sold7+'</td><td>'+coverTxt+'</td><td class="muted">'+ago(st.lastSold)+'</td><td class="muted">'+(isStale(s)?'<span class="warn">'+s.syncMin+' min ago</span>':s.syncMin+' min ago')+'</td></tr>'}).join('');
+  return '<div class="row-detail"><div class="dwrap"><table class="dtable"><thead><tr><th>Store</th><th>On hand</th><th>Reorder at</th><th>Price</th><th>Sold 7d</th><th>Runs out</th><th>Last sold</th><th>Synced</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div class="dside"><div><div class="k">UPC</div><div class="v" data-upc>'+sku.upc+'</div></div><div><div class="k">Category</div><div class="v">'+esc(sku.cat)+' · '+esc(sku.sub)+'</div></div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" type="button" data-copy="'+sku.upc+'">Copy UPC</button><button class="btn primary" type="button" data-flag="'+sku.id+'">Flag for reorder</button></div><div class="k" data-flagmsg style="text-transform:none;letter-spacing:0;display:none"></div></div></div>';
+}
+var currentRes=[];
+function render(){
+  var raw=qEl.value,out=search(raw);currentRes=out.res;
+  clearBtn.hidden=!raw;
+  var n=out.res.length,shown=out.res.slice(0,40);
+  var outSomewhere=out.res.filter(function(r){return STORES.some(function(s){return r.sku.stores[s.id].qty===0})}).length;
+  if(out.mode==='all')summaryEl.innerHTML='<strong>All '+n+' bottles</strong> across '+STORES.length+' stores · type to search';
+  else if(!n)summaryEl.innerHTML='No match for <strong>'+esc(raw)+'</strong>';
+  else summaryEl.innerHTML='<strong>'+n+' match'+(n===1?'':'es')+'</strong>'+(out.q.size!=null&&out.mode==='text'?' · '+esc(SIZES[out.q.size]?SIZES[out.q.size].label:out.q.size+' ml')+' only':'')+(out.q.pack!=null?' · '+out.q.pack+'-pack only':'')+(outSomewhere?' · <span style="color:var(--crit)">'+outSomewhere+' out of stock somewhere</span>':'')+(n>40?' · showing first 40':'');
+  if(!n){resultsEl.innerHTML='<li class="empty"><b>No bottle matches that</b>Try a brand name, a shorter word, or scan the barcode. Shorthand like “jd”, “titos handle” or “crown apple” works too.</li>';return}
+  resultsEl.innerHTML=shown.map(rowHtml).join('');
+}
+function toggleRow(li){
+  var id=+li.dataset.id;openId=openId===id?null:id;render();
+  if(openId!=null){var el=resultsEl.querySelector('.row[data-id="'+openId+'"] .row-main');if(el)el.focus()}
+}
+resultsEl.addEventListener('click',function(e){
+  var copy=e.target.closest('[data-copy]');
+  if(copy){var txt=copy.dataset.copy,done=function(){copy.textContent='Copied';setTimeout(function(){copy.textContent='Copy UPC'},1500)};
+    try{navigator.clipboard.writeText(txt).then(done,function(){selectUpc(copy)})}catch(err){selectUpc(copy)}return}
+  var flag=e.target.closest('[data-flag]');
+  if(flag){var msg=flag.parentNode.nextElementSibling;msg.style.display='block';msg.textContent='Noted. In the live version this adds the bottle to the reorder list for the stores that are low.';flag.disabled=true;flag.textContent='Flagged';return}
+  var main=e.target.closest('.row-main');if(main)toggleRow(main.parentNode);
+});
+function selectUpc(btn){var v=btn.closest('.dside').querySelector('[data-upc]');var r=document.createRange();r.selectNodeContents(v);var sel=window.getSelection();sel.removeAllRanges();sel.addRange(r)}
+resultsEl.addEventListener('keydown',function(e){
+  if(e.key!=='ArrowDown'&&e.key!=='ArrowUp')return;
+  var mains=Array.prototype.slice.call(resultsEl.querySelectorAll('.row-main')),i=mains.indexOf(document.activeElement);
+  if(i<0)return;e.preventDefault();var nx=mains[i+(e.key==='ArrowDown'?1:-1)];if(nx){nx.focus();nx.scrollIntoView({block:'nearest'})}
+});
+qEl.addEventListener('input',function(){openId=null;render()});
+qEl.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){qEl.value='';openId=null;render()}
+  if(e.key==='ArrowDown'){var f=resultsEl.querySelector('.row-main');if(f){e.preventDefault();f.focus()}}
+  if(e.key==='Enter'&&currentRes.length===1){openId=currentRes[0].sku.id;render()}
+});
+clearBtn.addEventListener('click',function(){qEl.value='';openId=null;render();qEl.focus()});
+document.getElementById('hints').addEventListener('click',function(e){var c=e.target.closest('.chip');if(!c)return;qEl.value=c.dataset.q;openId=null;render();qEl.focus()});
+document.addEventListener('keydown',function(e){
+  if(e.key==='/'&&!/input|textarea/i.test(document.activeElement.tagName)){e.preventDefault();location.hash='#find';qEl.focus();qEl.select()}
+});
+(function(){var jd=SKUS.filter(function(s){return s.brand==="Jack Daniel's"})[0];var c=document.getElementById('upcChip');c.dataset.q=jd.upc.slice(0,6);c.textContent=jd.upc.slice(0,6)+'…'})();
+
+/* ---------- low stock view ---------- */
+var lowFilter='ALL';
+function lowItems(){
+  var items=[];
+  SKUS.forEach(function(sku){STORES.forEach(function(s){var st=sku.stores[s.id];if(st.qty<=st.rop){
+    var cover=st.sold7>0?st.qty/(st.sold7/7):null;
+    items.push({sku:sku,store:s,st:st,out:st.qty===0,cover:cover})}})});
+  items.sort(function(a,b){if(a.out!==b.out)return a.out?-1:1;var ca=a.cover==null?99:a.cover,cb=b.cover==null?99:b.cover;return ca-cb||(a.st.qty/a.st.rop)-(b.st.qty/b.st.rop)});
+  return items;
+}
+var LOW=lowItems();
+(function(){var b=document.getElementById('lowBadge');b.textContent=LOW.length;if(LOW.some(function(i){return i.out}))b.classList.add('has-out')})();
+function renderLow(){
+  var items=lowFilter==='ALL'?LOW:LOW.filter(function(i){return i.store.id===lowFilter});
+  var outs=items.filter(function(i){return i.out}).length;
+  document.getElementById('lowSummary').innerHTML='<strong>'+items.length+' need attention</strong> · <span style="color:var(--crit)">'+outs+' out</span> · '+(items.length-outs)+' low';
+  document.getElementById('lowFilters').innerHTML=['ALL'].concat(STORES.map(function(s){return s.id})).map(function(id){
+    var cnt=id==='ALL'?LOW.length:LOW.filter(function(i){return i.store.id===id}).length;
+    var lbl=id==='ALL'?'All stores':STORES.filter(function(s){return s.id===id})[0].name;
+    return '<button class="chip'+(lowFilter===id?' is-on':'')+'" type="button" data-f="'+id+'">'+esc(lbl)+' · '+cnt+'</button>'}).join('');
+  document.getElementById('lowlist').innerHTML=items.map(function(i){
+    var cov=i.out?'out '+ago(i.st.lastSold).replace('today','since today'):(i.cover==null?'no sales this week':(i.cover<1?'runs out today':'~'+Math.round(i.cover)+' day'+(Math.round(i.cover)===1?'':'s')+' left'));
+    return '<li class="lowitem'+(i.out?' out':'')+'"><span class="stripe"></span><div class="what"><div class="name">'+esc(i.sku.brand+' '+i.sku.name)+' <span style="color:var(--ink-3);font-weight:400">'+esc(i.sku.label)+'</span></div><div class="meta">'+esc(i.sku.sub)+' · sold '+i.st.sold7+' this week · reorder at '+i.st.rop+'</div></div>'+
+      '<span class="where">'+i.store.id+' '+esc(i.store.name)+'</span><div class="stat"><div class="n">'+(i.out?'0':i.st.qty)+'</div><div class="l">'+cov+'</div></div></li>'}).join('');
+}
+document.getElementById('lowFilters').addEventListener('click',function(e){var c=e.target.closest('[data-f]');if(!c)return;lowFilter=c.dataset.f;renderLow()});
+
+/* ---------- stores view ---------- */
+function sparkSvg(vals,idx){
+  var w=240,h=48,pad=4,min=Math.min.apply(null,vals),max=Math.max.apply(null,vals),rng=(max-min)||1;
+  var pts=vals.map(function(v,i){return[pad+i*(w-2*pad)/(vals.length-1),pad+(h-2*pad)*(1-(v-min)/rng)]});
+  var line=pts.map(function(p,i){return(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)}).join(' ');
+  var area=line+' L'+pts[pts.length-1][0].toFixed(1)+' '+(h-pad)+' L'+pts[0][0].toFixed(1)+' '+(h-pad)+' Z';
+  var last=pts[pts.length-1],step=(w-2*pad)/(vals.length-1);
+  var hits=pts.map(function(p,i){return'<rect class="hit" data-i="'+i+'" x="'+(p[0]-step/2).toFixed(1)+'" y="0" width="'+step.toFixed(1)+'" height="'+h+'"/>'}).join('');
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true" data-spark="'+idx+'">'+
+    '<line class="grid" x1="'+pad+'" y1="'+(h-pad)+'" x2="'+(w-pad)+'" y2="'+(h-pad)+'"/>'+
+    '<path class="area" d="'+area+'"/><path class="line" d="'+line+'"/>'+
+    '<circle class="pt" cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="3.5"/>'+
+    '<circle class="hover" r="3.5" cx="0" cy="0"/>'+hits+'</svg>';
+}
+var DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function dayLabel(i){var d=new Date();d.setDate(d.getDate()-(6-i));return i===6?'today':DAYS[d.getDay()]}
+function renderStores(){
+  var grand={units:0,value:0};
+  document.getElementById('storegrid').innerHTML=STORES.map(function(s,idx){
+    var units=0,value=0,low=0,out=0,inStock=0;
+    SKUS.forEach(function(sku){var st=sku.stores[s.id];units+=st.qty;value+=st.qty*st.price;if(st.qty===0)out++;else{inStock++;if(st.qty<=st.rop)low++}});
+    grand.units+=units;grand.value+=value;
+    var today=s.sales7[6];
+    return '<article class="store-card"><header><div><h3><b>'+s.id+'</b>'+esc(s.name)+'</h3><div class="addr">'+esc(s.addr)+' · '+inStock+' of '+SKUS.length+' SKUs in stock</div></div>'+
+      '<span class="sync'+(isStale(s)?' is-stale':'')+'" title="'+(isStale(s)?'No update from this store for '+s.syncMin+' minutes. Check the POS connection.':'Last read from POS')+'"><i></i>'+(isStale(s)?'stale · ':'')+s.syncMin+' min ago</span></header>'+
+      '<dl class="stats"><div><dt>Units</dt><dd>'+units.toLocaleString()+'</dd></div><div><dt>Retail value</dt><dd>'+moneyK(value)+'</dd></div><div><dt>Low</dt><dd class="'+(low?'warn':'')+'">'+low+'</dd></div><div><dt>Out</dt><dd class="'+(out?'crit':'')+'">'+out+'</dd></div></dl>'+
+      '<div class="spark"><div class="spark-head"><span>Sales, last 7 days</span><strong data-sparklabel="'+idx+'">'+moneyK(today)+'<small>today</small></strong></div>'+sparkSvg(s.sales7,idx)+'</div></article>'}).join('');
+  document.getElementById('storeSummary').innerHTML='<strong>'+grand.units.toLocaleString()+' units</strong> on hand · '+moneyK(grand.value)+' at retail · '+SKUS.length+' SKUs';
+}
+document.getElementById('storegrid').addEventListener('mousemove',function(e){
+  var hit=e.target.closest('.hit');if(!hit)return;var svg=hit.closest('svg'),i=+hit.dataset.i,s=STORES[+svg.dataset.spark];
+  var pt=svg.querySelector('.hover'),pts=svg.querySelectorAll('.hit');var x=+hit.getAttribute('x')+(+hit.getAttribute('width'))/2;
+  var vals=s.sales7,min=Math.min.apply(null,vals),max=Math.max.apply(null,vals),rng=(max-min)||1,y=4+40*(1-(vals[i]-min)/rng);
+  pt.setAttribute('cx',x);pt.setAttribute('cy',y);pt.classList.add('on');
+  var lbl=document.querySelector('[data-sparklabel="'+svg.dataset.spark+'"]');lbl.innerHTML=moneyK(vals[i])+'<small>'+dayLabel(i)+'</small>';
+});
+document.getElementById('storegrid').addEventListener('mouseleave',function(){
+  document.querySelectorAll('.spark .hover').forEach(function(p){p.classList.remove('on')});
+  STORES.forEach(function(s,idx){var lbl=document.querySelector('[data-sparklabel="'+idx+'"]');if(lbl)lbl.innerHTML=moneyK(s.sales7[6])+'<small>today</small>'});
+},true);
+
+/* ---------- views ---------- */
+var VIEWS={'#find':'find','#low-stock':'low','#stores':'stores'};
+function showView(){
+  var v=VIEWS[location.hash]||'find';
+  ['find','low','stores'].forEach(function(k){document.getElementById('view-'+k).hidden=k!==v});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('is-active',t.dataset.view===v)});
+  if(v==='low')renderLow();if(v==='stores')renderStores();
+}
+window.addEventListener('hashchange',showView);
+(function(){var mn=Math.min.apply(null,STORES.map(function(s){return s.syncMin}));document.querySelector('#syncline span:last-child').textContent='Synced '+mn+' min ago · Square · '+STORES.filter(isStale).length+' store stale'})();
+render();showView();
+if(!VIEWS[location.hash]||location.hash==='#find')qEl.focus();
+})();
+</script>
+</body>
+</html>
